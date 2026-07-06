@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign up — ThaliShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav><div class="nav-inner">
+  <a class="brand" href="index.html">Thali<span>Share</span></a>
+  <div class="nav-links">
+    <a class="ghost" href="index.html">Home</a>
+    <a class="ghost" href="login.html">Log in</a>
+  </div>
+</div></nav>
+
+<div class="wrap">
+  <div class="auth-wrap">
+    <div class="auth-tabs">
+      <a href="login.html">Log in</a>
+      <a class="active" href="signup.html">Sign up</a>
+    </div>
+
+    <h2>Create your account</h2>
+    <div class="sub">Tell us who you are so we can route surplus food correctly.</div>
+
+    <div class="role-select">
+      <div class="role-opt active" id="roleHotelOpt" onclick="setRole('hotel')">🏨 Hotel / Resort</div>
+      <div class="role-opt" id="roleNgoOpt" onclick="setRole('ngo')">🤝 NGO / Volunteer</div>
+    </div>
+
+    <form id="signupForm">
+      <label id="nameLabel">Hotel / Resort name</label>
+      <input id="signupName" placeholder="e.g. Taj Palace Banquets" required>
+
+      <label>City</label>
+      <select id="signupCity">
+        <option>Mumbai</option><option>Delhi NCR</option><option>Bengaluru</option>
+        <option>Hyderabad</option><option>Chennai</option><option>Kolkata</option>
+        <option>Pune</option><option>Ahmedabad</option>
+      </select>
+
+      <label>Email</label>
+      <input id="signupEmail" type="email" placeholder="you@example.com" required>
+
+      <label>Password</label>
+      <input id="signupPassword" type="password" placeholder="At least 6 characters" required>
+
+      <div class="auth-msg" id="signupMsg"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;" id="signupBtn">Create account</button>
+    </form>
+
+    <div class="auth-footer-link">Already have an account? <a href="login.html">Log in here</a></div>
+  </div>
+</div>
+
+<footer>ThaliShare — a student prototype connecting metro hotels/resorts with NGOs to reduce food waste.</footer>
+
+<script>
+  const API_URL = 'http://localhost:5000';
+  let selectedRole = 'hotel';
+
+  function setRole(role){
+    selectedRole = role;
+    document.getElementById('roleHotelOpt').classList.toggle('active', role==='hotel');
+    document.getElementById('roleNgoOpt').classList.toggle('active', role==='ngo');
+    document.getElementById('nameLabel').textContent = role==='hotel' ? 'Hotel / Resort name' : 'NGO / Volunteer group name';
+    document.getElementById('signupName').placeholder = role==='hotel' ? 'e.g. Taj Palace Banquets' : 'e.g. Robin Hood Army - City Chapter';
+  }
+
+  document.getElementById('signupForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const name = document.getElementById('signupName').value.trim();
+    const city = document.getElementById('signupCity').value;
+    const email = document.getElementById('signupEmail').value.trim();
+    const password = document.getElementById('signupPassword').value;
+    const msg = document.getElementById('signupMsg');
+    const btn = document.getElementById('signupBtn');
+
+    if(!name || !email || password.length < 6){
+      msg.textContent = 'Please fill in name, email, and a password with 6+ characters.';
+      return;
+    }
+
+    msg.style.color = 'var(--ink-soft)';
+    msg.textContent = 'Creating your account...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(API_URL + '/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, role: selectedRole, city })
+      });
+      const data = await response.json();
+
+      if(!response.ok){
+        msg.style.color = 'var(--urgent)';
+        msg.textContent = data.error || 'Something went wrong. Please try again.';
+        btn.disabled = false;
+        return;
+      }
+
+      sessionStorage.setItem('thalishare_user', JSON.stringify(data));
+      window.location.href = 'dashboard.html';
+
+    } catch(err) {
+      msg.style.color = 'var(--urgent)';
+      msg.textContent = 'Could not reach the server. Is your backend running? (node index.js)';
+      btn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>

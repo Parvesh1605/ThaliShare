@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — ThaliShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav><div class="nav-inner">
+  <a class="brand" href="index.html">Thali<span>Share</span></a>
+  <div class="nav-links">
+    <span class="pill" id="cityPill">—</span>
+    <a class="ghost" href="#" onclick="logout()">Log out</a>
+  </div>
+</div></nav>
+
+<div class="wrap">
+  <div class="app-top">
+    <div class="welcome">Welcome, <b id="welcomeName">—</b> · <span id="welcomeRole"></span></div>
+    <div class="city-select-wrap">
+      <label>Viewing city:</label>
+      <select id="citySwitcher"></select>
+    </div>
+  </div>
+
+  <div class="impact-strip">
+    <div class="s"><div class="num" id="statMeals">0</div><div class="lbl">Meals saved</div></div>
+    <div class="s"><div class="num" id="statKg">0</div><div class="lbl">Kg rescued</div></div>
+    <div class="s"><div class="num" id="statPickups">0</div><div class="lbl">Pickups</div></div>
+  </div>
+
+  <button class="btn btn-primary" id="postTriggerBtn" style="margin-bottom:16px;display:none;" onclick="document.getElementById('postPanel').classList.add('open')">+ Post surplus food</button>
+
+  <div class="post-panel" id="postPanel">
+    <h3>Post surplus food</h3>
+    <div class="sub">Be specific about the pickup window — that's what keeps this food safe to eat.</div>
+    <div class="form-grid">
+      <div><label>Food description</label><input id="fFood" placeholder="e.g. Paneer tikka, dal makhani, naan"></div>
+      <div><label>Event type</label>
+        <select id="fSource"><option>Wedding banquet</option><option>Corporate event</option><option>Buffet leftover</option><option>Conference catering</option></select>
+      </div>
+      <div><label>Serves approx.</label><input id="fServes" type="number" min="1" value="80"></div>
+    </div>
+    <div class="form-grid row2" style="margin-top:14px;">
+      <div><label>Pickup location</label><input id="fLocality" placeholder="e.g. Banquet Hall, Bandra Kurla Complex"></div>
+      <div><label>Pickup window</label>
+        <select id="fWindow"><option value="1">1 hour</option><option value="2" selected>2 hours</option><option value="3">3 hours</option></select>
+      </div>
+      <div><label>Contact number</label><input id="fContact" placeholder="e.g. 98xxxxxx10"></div>
+    </div>
+    <div class="post-actions">
+      <button class="btn btn-primary" onclick="submitPost()">Post surplus</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('postPanel').classList.remove('open')">Cancel</button>
+      <span class="form-msg" id="formMsg"></span>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2 id="feedTitle">Surplus feed</h2>
+    <span class="count" id="feedCount">0 active</span>
+  </div>
+  <div class="feed" id="feed"></div>
+
+  <div class="section-head"><h2>Already picked up</h2><span class="count" id="claimedCount">0</span></div>
+  <div class="feed" id="claimedFeed"></div>
+</div>
+
+<footer>ThaliShare — a student prototype connecting metro hotels/resorts with NGOs to reduce food waste.</footer>
+
+<script>
+(function(){
+  const RING_R = 26, RING_C = 2*Math.PI*RING_R;
+  const CITIES = ['Mumbai','Delhi NCR','Bengaluru','Hyderabad','Chennai','Kolkata','Pune','Ahmedabad'];
+
+  // ---- Check login ----
+  const raw = sessionStorage.getItem('thalishare_user');
+  if(!raw){
+    window.location.href = 'login.html';
+    return;
+  }
+  const currentUser = JSON.parse(raw);
+  window.logout = function(){ sessionStorage.removeItem('thalishare_user'); window.location.href = 'index.html'; };
+
+  let viewingCity = currentUser.city;
+  let listings = [];
+  let idCounter = 1;
+  let mealsSaved = 0, kgSaved = 0, pickups = 0;
+
+  function makeListing(data){
+    const now = Date.now();
+    return {id: idCounter++, ...data, postedAt: now, expiresAt: now + data.windowHrs*3600*1000, claimed:false};
+  }
+  const seed = [
+    {food:'Paneer butter masala, naan, jeera rice', source:'Wedding banquet', serves:150, locality:'Bandra Kurla Complex', city:'Mumbai', windowHrs:2, contact:'98xxxxxx41'},
+    {food:'Veg biryani, raita, salad', source:'Corporate event', serves:60, locality:'Cyber City, Gurugram', city:'Delhi NCR', windowHrs:1.5, contact:'99xxxxxx02'},
+    {food:'Idli, vada, sambhar', source:'Conference catering', serves:90, locality:'Whitefield', city:'Bengaluru', windowHrs:3, contact:'97xxxxxx88'},
+    {food:'Dal makhani, mixed veg, rotis', source:'Buffet leftover', serves:70, locality:'Banjara Hills', city:'Hyderabad', windowHrs:0.75, contact:'96xxxxxx19'},
+  ];
+  seed.forEach(s=>listings.push(makeListing(s)));
+
+  function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+  function fmtTimeLeft(ms){
+    if(ms<=0) return {text:'expired',unit:''};
+    const totalMin=Math.floor(ms/60000);
+    if(totalMin>=60){const h=Math.floor(totalMin/60),m=totalMin%60;return {text:`${h}h ${m}m`,unit:'left'};}
+    return {text:`${totalMin}m`,unit:'left'};
+  }
+  function ringColor(frac){
+    if(frac>0.5) return getCss('--gold-light');
+    if(frac>0.2) return getCss('--peach');
+    return getCss('--urgent');
+  }
+  function renderRing(frac){
+    const offset = RING_C*(1-frac), color = ringColor(frac);
+    return `<svg width="60" height="60" viewBox="0 0 64 64">
+      <circle cx="32" cy="32" r="${RING_R}" fill="none" stroke="${getCss('--line')}" stroke-width="5"/>
+      <circle cx="32" cy="32" r="${RING_R}" fill="none" stroke="${color}" stroke-width="5" stroke-linecap="round"
+        stroke-dasharray="${RING_C}" stroke-dashoffset="${offset}"/>
+    </svg>`;
+  }
+
+  function cardEl(l, now, isHotel){
+    const div = document.createElement('div');
+    div.className = 'card' + (l.claimed?' is-claimed':'');
+    const totalMs = l.expiresAt - l.postedAt;
+    const leftMs = l.expiresAt - now;
+    const frac = Math.max(0, Math.min(1, leftMs/totalMs));
+    const {text,unit} = l.claimed ? {text:'done',unit:''} : fmtTimeLeft(leftMs);
+
+    let actionHtml;
+    if(l.claimed){
+      actionHtml = `<span class="claimed-btn">Picked up ✓</span>`;
+    } else if(isHotel){
+      actionHtml = `<span class="yours-btn" style="opacity:.6">Waiting for NGO</span>`;
+    } else {
+      actionHtml = `<button class="claim-btn" data-id="${l.id}">Claim pickup</button>`;
+    }
+
+    div.innerHTML = `
+      <div class="ring-wrap">
+        ${l.claimed ? `<svg width="60" height="60" viewBox="0 0 64 64"><circle cx="32" cy="32" r="${RING_R}" fill="none" stroke="${getCss('--claimed')}" stroke-width="5"/></svg>` : renderRing(frac)}
+        <div class="ring-label"><div class="t" style="color:${l.claimed?getCss('--claimed'):ringColor(frac)}">${text}</div><div class="u">${unit}</div></div>
+      </div>
+      <div class="card-body">
+        <div class="card-top"><span class="food-name">${l.food}</span><span class="tag ${l.claimed?'claimed-tag':''}">${l.source}</span></div>
+        <div class="meta-line"><span>🍽 serves ~${l.serves}</span><span>📍 ${l.locality}</span><span>📞 ${l.contact}</span></div>
+      </div>
+      <div class="card-action">${actionHtml}</div>
+    `;
+    return div;
+  }
+
+  function renderApp(){
+    const now = Date.now();
+    const isHotel = currentUser.role === 'hotel';
+    document.getElementById('postTriggerBtn').style.display = isHotel ? 'inline-block' : 'none';
+    if(!isHotel) document.getElementById('postPanel').classList.remove('open');
+
+    const cityListings = listings.filter(l => l.city === viewingCity);
+    const active = cityListings.filter(l=>!l.claimed && l.expiresAt>now).sort((a,b)=>a.expiresAt-b.expiresAt);
+    const claimed = cityListings.filter(l=>l.claimed);
+
+    document.getElementById('feedCount').textContent = `${active.length} active`;
+    document.getElementById('claimedCount').textContent = `${claimed.length}`;
+
+    const feed = document.getElementById('feed');
+    feed.innerHTML = '';
+    if(active.length===0){
+      feed.innerHTML = `<div class="empty">Nothing posted in ${viewingCity} right now.</div>`;
+    } else {
+      active.forEach(l=>feed.appendChild(cardEl(l, now, isHotel)));
+    }
+
+    const claimedFeed = document.getElementById('claimedFeed');
+    claimedFeed.innerHTML = '';
+    if(claimed.length===0){
+      claimedFeed.innerHTML = `<div class="empty">No pickups completed yet in ${viewingCity}.</div>`;
+    } else {
+      claimed.slice().reverse().forEach(l=>claimedFeed.appendChild(cardEl(l, now, isHotel)));
+    }
+
+    document.getElementById('statMeals').textContent = mealsSaved;
+    document.getElementById('statKg').textContent = kgSaved;
+    document.getElementById('statPickups').textContent = pickups;
+  }
+
+  document.getElementById('feed').addEventListener('click', e=>{
+    if(e.target.classList.contains('claim-btn')){
+      const id = Number(e.target.dataset.id);
+      const l = listings.find(x=>x.id===id);
+      if(l && !l.claimed){
+        l.claimed = true; pickups += 1; mealsSaved += l.serves; kgSaved += Math.round(l.serves*0.35);
+        renderApp();
+      }
+    }
+  });
+
+  window.submitPost = function(){
+    const food = document.getElementById('fFood').value.trim();
+    const source = document.getElementById('fSource').value;
+    const serves = parseInt(document.getElementById('fServes').value)||0;
+    const locality = document.getElementById('fLocality').value.trim();
+    const windowHrs = parseFloat(document.getElementById('fWindow').value);
+    const contact = document.getElementById('fContact').value.trim();
+    const msg = document.getElementById('formMsg');
+    if(!food||!locality||!contact||serves<=0){
+      msg.style.color = getCss('--urgent'); msg.textContent = 'Fill in the food, locality, servings and contact to post.';
+      return;
+    }
+    listings.push(makeListing({food, source, serves, locality, city: viewingCity, windowHrs, contact}));
+    msg.style.color = getCss('--claimed'); msg.textContent = 'Posted — visible to NGOs in this city now.';
+    document.getElementById('fFood').value=''; document.getElementById('fLocality').value=''; document.getElementById('fContact').value='';
+    renderApp();
+    setTimeout(()=>{msg.textContent='';}, 3000);
+  };
+
+  // ---- Init page ----
+  document.getElementById('welcomeName').textContent = currentUser.name;
+  document.getElementById('welcomeRole').textContent = currentUser.role==='hotel' ? '🏨 Hotel/Resort account' : '🤝 NGO/Volunteer account';
+  document.getElementById('cityPill').textContent = currentUser.city;
+  const citySwitcher = document.getElementById('citySwitcher');
+  citySwitcher.innerHTML = CITIES.map(c=>`<option ${c===currentUser.city?'selected':''}>${c}</option>`).join('');
+  citySwitcher.addEventListener('change', e=>{ viewingCity = e.target.value; renderApp(); });
+  document.getElementById('feedTitle').textContent = currentUser.role==='hotel' ? "Your city's surplus feed" : 'Available for pickup near you';
+
+  setInterval(renderApp, 1000);
+  renderApp();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log in — ThaliShare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav><div class="nav-inner">
+  <a class="brand" href="index.html">Thali<span>Share</span></a>
+  <div class="nav-links">
+    <a class="ghost" href="index.html">Home</a>
+    <a class="solid" href="signup.html">Sign up</a>
+  </div>
+</div></nav>
+
+<div class="wrap">
+  <div class="auth-wrap">
+    <div class="auth-tabs">
+      <a class="active" href="login.html">Log in</a>
+      <a href="signup.html">Sign up</a>
+    </div>
+
+    <h2>Welcome back</h2>
+    <div class="sub">Log in to see surplus posts in your city.</div>
+
+    <form id="loginForm">
+      <label>Email</label>
+      <input id="loginEmail" type="email" placeholder="you@example.com" required>
+
+      <label>Password</label>
+      <input id="loginPassword" type="password" placeholder="Your password" required>
+
+      <div class="auth-msg" id="loginMsg"></div>
+      <button type="submit" class="btn btn-primary" style="width:100%;" id="loginBtn">Log in</button>
+    </form>
+
+    <div class="auth-footer-link">Don't have an account? <a href="signup.html">Sign up here</a></div>
+  </div>
+</div>
+
+<footer>ThaliShare — a student prototype connecting metro hotels/resorts with NGOs to reduce food waste.</footer>
+
+<script>
+  const API_URL = 'http://localhost:5000';
+
+  document.getElementById('loginForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const msg = document.getElementById('loginMsg');
+    const btn = document.getElementById('loginBtn');
+
+    if(!email || password.length < 6){
+      msg.textContent = 'Please enter a valid email and a password with 6+ characters.';
+      return;
+    }
+
+    msg.style.color = 'var(--ink-soft)';
+    msg.textContent = 'Logging in...';
+    btn.disabled = true;
+
+    try {
+      const response = await fetch(API_URL + '/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+
+      if(!response.ok){
+        msg.style.color = 'var(--urgent)';
+        msg.textContent = data.error || 'Something went wrong. Please try again.';
+        btn.disabled = false;
+        return;
+      }
+
+      sessionStorage.setItem('thalishare_user', JSON.stringify(data));
+      window.location.href = 'dashboard.html';
+
+    } catch(err) {
+      msg.style.color = 'var(--urgent)';
+      msg.textContent = 'Could not reach the server. Is your backend running? (node index.js)';
+      btn.disabled = false;
+    }
+  });
+</script>
+
+</body>
+</html>
